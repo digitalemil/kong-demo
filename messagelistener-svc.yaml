@@ -1,0 +1,16 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: messagelistener-svc
+spec:
+  selector:
+    app: thegym
+    component: messagelistener
+    version: 0.0.1    
+  ports:
+    - name: "http"
+      protocol: TCP
+      port: 80
+      targetPort: 8081 
+  type: LoadBalancer

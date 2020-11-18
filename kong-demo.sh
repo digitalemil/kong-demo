@@ -42,7 +42,7 @@ then
     cd kuma-*/bin
     ./kumactl install control-plane | kubectl apply -f -
     sleep 20
-    kubectl port-forward svc/kuma-control-plane -n kuma-system 5681:5681 &> kuma-portforward-output.log &
+    kubectl port-forward svc/kuma-control-plane -n kuma-system 5681:5681 &> /tmp/kuma-portforward-output.log &
     sleep 10
     kubectl apply -f ../../metrics1.yaml
     sleep 10
@@ -50,23 +50,29 @@ then
     sleep 10
     kubectl apply -f ../../metrics2.yaml
     sleep 10
-    kubectl port-forward svc/grafana -n kuma-metrics 3020:80 &> kuma-metrics-portforward-output.log &
+    kubectl port-forward svc/grafana -n kuma-metrics 3020:80 &> /tmp/kuma-metrics-portforward-output.log &
+    cd $SCRIPTDIR
 else
     echo Skipping minikube start 
 fi
 
 
-
 read -r -p "Clone & deploy demo app (TheGym) into minikube? [y/N] " response
 if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]
 then
+    cd $SCRIPTDIR
     git clone https://github.com/digitalemil/thesimplegym
     kubectl apply -f namespace.yaml
     cd thesimplegym
     kubectl -n thegym apply -f thesimplegym.yaml
+    kubectl -n thegym delete deployment loader
     cd ..
+    kubectl -n thegym apply -f messagelistener-svc.yaml
     sleep 10
     export TARGET=$(minikube -n thegym service ui | grep '\- http' | sed 's/.*http:\/\//''/g')
+    export APPPORT=$(echo $TARGET | sed 's/[0-9.]*://g')
+    kubectl port-forward svc/ui -n thegym 8088:80 &> /tmp/thegym-portforward-output.log &
+    echo App reachable at: $$TARGET
 else
     echo Skipping demo app deployment
 fi
@@ -107,4 +113,14 @@ else
     echo Skipping creating service & route
 fi
 
-
+read -r -p "Create Load? [y/N] " response
+export LISTENER=http://$(minikube -n thegym service messagelistener-svc | grep '\- http' | sed 's/.*http:\/\//''/g')   
+if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]
+then
+    cd $SCRIPTDIR/thesimplegym/microservice-loadgenerator
+    export LISTENER=http://$(minikube -n thegym service messagelistener-svc | grep '\- http' | sed 's/.*http:\/\//''/g')
+    echo MessageListener: $LISTENER
+    nodemon npm start &> /tmp/loadgenerator.log
+  else
+    echo Skipping load creation at $LISTENER
+fi
