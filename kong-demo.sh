@@ -17,7 +17,7 @@ then
     sudo chown -R $USER:$USER pgsql
     chmod -R 777 pgsql
  
-    sudo su - postgres -c "export PATH=$PATH:/usr/lib/postgresql/13/bin; postgres -D $PWD/pgsql/data >$PWD/pgsql/logfile 2>&1 &kong"
+    sudo su - postgres -c "export PATH=$PATH:/usr/lib/postgresql/13/bin; postgres -D $PWD/pgsql/data >$PWD/pgsql/logfile 2>&1"
     sudo su - postgres -c "export PATH=$PATH:/usr/lib/postgresql/13/bin;psql -c \"CREATE USER kong;\""
     sudo su - postgres -c "export PATH=$PATH:/usr/lib/postgresql/13/bin;psql -c \"ALTER ROLE kong PASSWORD 'kong';\""
     sudo su - postgres -c "export PATH=$PATH:/usr/lib/postgresql/13/bin;createdb kong -O kong"
@@ -41,14 +41,16 @@ then
     curl -L https://kuma.io/installer.sh | sh -
     cd kuma-*/bin
     ./kumactl install control-plane | kubectl apply -f -
-    sudo ln -s ./kumactl /usr/local/bin/kumactl
+    sleep 20
     kubectl port-forward svc/kuma-control-plane -n kuma-system 5681:5681 &> kuma-portforward-output.log &
     sleep 10
-    kumactl install metrics | kubectl apply -f -
+    kubectl apply -f ../../metrics1.yaml
     sleep 10
-    kumactl apply -f metrics.yaml
+    ./kumactl install metrics | kubectl apply -f -
     sleep 10
-    kubectl port-forward svc/grafana -n kuma-metrics 3000:80 &> kuma-metrics-portforward-output.log &
+    kubectl apply -f ../../metrics2.yaml
+    sleep 10
+    kubectl port-forward svc/grafana -n kuma-metrics 3020:80 &> kuma-metrics-portforward-output.log &
 else
     echo Skipping minikube start 
 fi
@@ -63,6 +65,8 @@ then
     cd thesimplegym
     kubectl -n thegym apply -f thesimplegym.yaml
     cd ..
+    sleep 10
+    export TARGET=$(minikube -n thegym service ui | grep '\- http' | sed 's/.*http:\/\//''/g')
 else
     echo Skipping demo app deployment
 fi
@@ -90,8 +94,17 @@ else
 fi
 
 
-#export TARGET=$(minikube -n thegym service ui | grep '\- http' | sed 's/.*http:\/\//''/g')
-#curl -i -X POST   --url http://localhost:8001/services/   --data 'name=thegym-service'   --data "url=http://$TARGET"
-#curl -i -X POST   --url http://localhost:8001/services/thegym-service/routes   --data 'paths[]=/'
+read -r -p "Create Kong service & route? [y/N] " response
+if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]
+then
+    export TARGET=$(minikube -n thegym service ui | grep '\- http' | sed 's/.*http:\/\//''/g')
+    
+    curl -i -X POST   --url http://localhost:8001/services/   --data 'name=thegym-service'   --data "url=http://$TARGET"
+    curl -i -X POST   --url http://localhost:8001/services/thegym-service/routes   --data 'paths[]=/'
+    echo
+    echo Access the service on port 8000 on this cloud shell
+else
+    echo Skipping creating service & route
+fi
 
-#echo Access the service on port 8000 on this cloud shell
+
