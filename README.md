@@ -1,4 +1,4 @@
-# kong-demo
+# Kong Demo
 
 ## Mini Kong & Kuma Demo on Google Cloud Shell
 
