@@ -49,7 +49,7 @@ then
     ./kumactl install metrics | kubectl apply -f -
     sleep 10
     kubectl apply -f ../../metrics2.yaml
-    sleep 10
+    sleep 30
     kubectl port-forward svc/grafana -n kuma-metrics 3020:80 &> /tmp/kuma-metrics-portforward-output.log &
     cd $SCRIPTDIR
 else
@@ -61,6 +61,7 @@ read -r -p "Clone & deploy demo app (TheGym) into minikube? [y/N] " response
 if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]
 then
     cd $SCRIPTDIR
+    rm -fr thesimplegym
     git clone https://github.com/digitalemil/thesimplegym
     kubectl apply -f namespace.yaml
     cd thesimplegym
@@ -72,7 +73,7 @@ then
     export TARGET=$(minikube -n thegym service ui | grep '\- http' | sed 's/.*http:\/\//''/g')
     export APPPORT=$(echo $TARGET | sed 's/[0-9.]*://g')
     kubectl port-forward svc/ui -n thegym 8088:80 &> /tmp/thegym-portforward-output.log &
-    echo App reachable at: $$TARGET
+    echo App reachable at port 8088
 else
     echo Skipping demo app deployment
 fi
@@ -105,8 +106,12 @@ if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]
 then
     export TARGET=$(minikube -n thegym service ui | grep '\- http' | sed 's/.*http:\/\//''/g')
     
-    curl -i -X POST   --url http://localhost:8001/services/   --data 'name=thegym-service'   --data "url=http://$TARGET"
-    curl -i -X POST   --url http://localhost:8001/services/thegym-service/routes   --data 'paths[]=/'
+    curl -i -X POST   --url http://localhost:8001/services/   --data 'name=thegym-ui-service'   --data "url=http://localhost:8088"
+    curl -i -X POST   --url http://localhost:8001/services/thegym-ui-service/routes   --data 'paths[]=/ui'
+    
+    curl -i -X POST   --url http://localhost:8001/services/   --data 'name=thegym-ml-service'   --data "url=http://localhost:8089"
+    curl -i -X POST   --url http://localhost:8001/services/thegym-ml-service/routes   --data 'paths[]=/ml'
+
     echo
     echo Access the service on port 8000 on this cloud shell
 else
@@ -114,13 +119,26 @@ else
 fi
 
 read -r -p "Create Load? [y/N] " response
-export LISTENER=http://$(minikube -n thegym service messagelistener-svc | grep '\- http' | sed 's/.*http:\/\//''/g')   
 if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]
 then
     cd $SCRIPTDIR/thesimplegym/microservice-loadgenerator
-    export LISTENER=http://$(minikube -n thegym service messagelistener-svc | grep '\- http' | sed 's/.*http:\/\//''/g')
+    export LISTENER=http://localhost:8000/ml
+    kubectl port-forward svc/messagelistener-svc -n thegym 8089:8081 &> /tmp/thegym-ml-portforward-output.log &
     echo MessageListener: $LISTENER
-    nodemon npm start &> /tmp/loadgenerator.log
-  else
+    nodemon npm start &> /tmp/loadgenerator.log &
+else
     echo Skipping load creation at $LISTENER
 fi
+
+read -r -p "Limit rate? [y/N] " response
+if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]
+then
+    curl -X POST http://localhost:8001/services/thegym-ml-service/plugins \
+    --data "name=rate-limiting"  \
+    --data "config.minute=1" \
+    --data "config.policy=local"
+else
+    echo Skipping rate limiting
+fi
+
+

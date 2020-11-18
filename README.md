@@ -12,3 +12,9 @@ All you need is a gmail account and a browser. Google Cloud Shell is free for ev
   
 * Start the installation:
   + kong-demo/kong-demo.sh
+
+### Known Issues:
+* postgres install hangs. If that happens just restart the script
+
+* Grafana has no data. Run kubectl delete ns kuma-metrics and rerun the script installing Kuma again (or just the metrics)
+
