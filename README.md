@@ -1,6 +1,6 @@
-# Kong Demo
+![](https://github.com/digitalemil/kong-demo/blob/main/imgs/kongandkuma.png)
 
-## Mini Kong & Kuma Demo on Google Cloud Shell
+# A minimal Kong & Kuma Demo on Google Cloud Shell
 
 All you need is a gmail account and a browser. Google Cloud Shell is free for every gmail user and does not need anything else (like setting up billing, credit card, etc.)
 
